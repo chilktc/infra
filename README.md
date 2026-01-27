@@ -1,6 +1,6 @@
 # 🌩️ Cloud-Native Platform Infrastructure
 
-AWS 기반의 **Production-Ready Cloud-Native 플랫폼 아키텍처**를 코드 중심으로 설계하고 관리하기 위한 인프라 리포지토리입니다.
+AWS 기반의 **Production-Ready Cloud-Native 플랫폼 아키텍처**를 코드 중심으로 설계하고 관리하기 위한 인프라 repo입니다.
 
 **Infra → Platform → Workload → GitOps** 구조를 기반으로  
 확장 가능하고 운영 가능한 클라우드 플랫폼 구성을 목표로 합니다.
