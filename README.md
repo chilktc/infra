@@ -1,4 +1,4 @@
-# 🌩️ Cloud-Native Platform Infrastructure
+# Cloud-Native Platform Infrastructure
 
 AWS 기반의 **Production-Ready Cloud-Native 플랫폼 아키텍처**를 코드 중심으로 설계하고 관리하기 위한 인프라 repo입니다.
 
@@ -35,7 +35,7 @@ Backend (Spring Boot)
 ↓
 RDS / Redis / S3
 ```
-### 🚀 CI/CD 흐름
+### `CI`/`CD` 흐름
 
 ```
 Developer → GitHub → GitHub Actions → ECR
@@ -61,7 +61,7 @@ EKS
 | Security | Bastion Host, KMS, Private Access |
 ---
 
-## 📁 Repository Structure
+## `Repository Structure`
 ```
 infra/
 ├── README.md # 프로젝트 개요
@@ -73,7 +73,7 @@ infra/
 
 ---
 
-### 🔹 aws/
+### `aws/`
 
 클라우드 인프라 리소스 영역
 
@@ -84,7 +84,7 @@ infra/
 
 ---
 
-### 🔹 platform/
+### `platform/`
 
 EKS 내부 플랫폼 구성 요소
 
@@ -97,7 +97,7 @@ EKS 내부 플랫폼 구성 요소
 
 ---
 
-### 🔹 apps/
+### `apps/`
 
 비즈니스 워크로드 영역
 
@@ -107,7 +107,7 @@ EKS 내부 플랫폼 구성 요소
 
 ---
 
-### 🔹 gitops/
+### `gitops/`
 
 ArgoCD가 감시하는 GitOps 루트
 
@@ -117,7 +117,7 @@ ArgoCD가 감시하는 GitOps 루트
 
 ---
 
-## 🔐 보안 설계 원칙
+## 보안 설계 원칙
 
 - Private Subnet 중심 설계
 - Bastion 기반 운영 접근
