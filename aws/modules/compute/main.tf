@@ -18,6 +18,20 @@ locals {
   name_prefix = "${var.project}-${var.env}"
 }
 
+variable "project" {}
+variable "env" {}
+variable "instance_type" {}
+variable "instance_count" {}
+variable "subnet_ids" {}
+variable "private_ips" {}
+variable "security_group_ids" {}
+variable "instance_profile_name" {}
+variable "user_data" {}
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
 resource "aws_instance" "this" {
   count = var.instance_count
 
@@ -35,7 +49,11 @@ resource "aws_instance" "this" {
     volume_type = "gp3"
   }
 
-  tags = {
+  tags = merge(var.tags, {
     Name = "${local.name_prefix}-app-${count.index + 1}"
-  }
+  })
+}
+
+output "instance_ids" {
+  value = aws_instance.this[*].id
 }

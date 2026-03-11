@@ -2,6 +2,19 @@ locals {
   name_prefix = "${var.project}-${var.env}"
 }
 
+variable "project" {}
+variable "env" {}
+variable "vpc_id" {}
+variable "public_subnet_ids" {}
+variable "instance_ids" {}
+variable "management_instance_ids" {}
+variable "frontend_instance_ids" {}
+variable "security_group_ids" {}
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
 resource "aws_lb" "this" {
   name               = "${local.name_prefix}-alb"
   internal           = false
@@ -10,9 +23,9 @@ resource "aws_lb" "this" {
   subnets            = var.public_subnet_ids
   enable_deletion_protection = true
 
-  tags = {
+  tags = merge(var.tags, {
     Name = "${local.name_prefix}-alb"
-  }
+  })
 }
 
 resource "aws_lb_target_group" "app" {
@@ -29,6 +42,10 @@ resource "aws_lb_target_group" "app" {
     unhealthy_threshold = 2
     matcher             = "200-399"
   }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-app-tg"
+  })
 }
 
 resource "aws_lb_listener" "http" {
@@ -102,6 +119,10 @@ resource "aws_lb_target_group" "grafana" {
     unhealthy_threshold = 2
     matcher             = "200-399"
   }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-grafana-tg"
+  })
 }
 
 resource "aws_lb_listener" "grafana" {
@@ -139,6 +160,10 @@ resource "aws_lb_target_group" "opensearch" {
     unhealthy_threshold = 2
     matcher             = "200-302,401"
   }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-os-tg"
+  })
 }
 
 resource "aws_lb_listener" "opensearch" {
@@ -176,6 +201,10 @@ resource "aws_lb_target_group" "frontend" {
     unhealthy_threshold = 2
     matcher             = "200-399"
   }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-frontend-tg"
+  })
 }
 
 resource "aws_lb_listener" "frontend" {

@@ -16,6 +16,7 @@ module "security" {
   project = var.project
   env     = var.env
   vpc_id  = data.terraform_remote_state.network.outputs.vpc_id
+  tags    = var.default_tags
 }
 
 ###############################
@@ -33,9 +34,11 @@ module "compute" {
   security_group_ids    = [module.security.app_sg_id]
   instance_profile_name = module.security.instance_profile_name
   user_data             = templatefile("${path.module}/scripts/init-app.sh", {
-    GF_ADMIN_PASSWORD = var.gf_admin_password
-    OS_ADMIN_PASSWORD = var.os_admin_password
+    gf_admin_password = var.gf_admin_password
+    os_admin_password = var.os_admin_password
+    target_ips        = join(",", ["10.7.10.10", "10.7.11.10", "10.7.10.20", "10.7.11.20"])
   })
+  tags                  = var.default_tags
 }
 
 ###############################
@@ -49,6 +52,7 @@ module "alb" {
   vpc_id             = data.terraform_remote_state.network.outputs.vpc_id
   public_subnet_ids  = data.terraform_remote_state.network.outputs.public_subnet_ids
   security_group_ids = [module.security.alb_sg_id]
+  tags               = var.default_tags
 
   # backend+AI: app-2, app-3
   instance_ids = {

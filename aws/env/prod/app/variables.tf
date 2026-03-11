@@ -27,3 +27,13 @@ variable "os_admin_password" {
   type      = string
   sensitive = true
 }
+
+variable "default_tags" {
+  type = map(string)
+  default = {
+    Project   = "t7-mindlog"
+    Env       = "prod"
+    ManagedBy = "terraform"
+    Owner     = "infra-team"
+  }
+}
