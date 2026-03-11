@@ -2,6 +2,14 @@ locals {
   name_prefix = "${var.project}-${var.env}"
 }
 
+variable "project" {}
+variable "env" {}
+variable "vpc_id" {}
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
 ###############################
 # ALB Security Group
 ###############################
@@ -52,9 +60,9 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
+  tags = merge(var.tags, {
     Name = "${local.name_prefix}-alb-sg"
-  }
+  })
 }
 
 ###############################
@@ -93,6 +101,14 @@ resource "aws_security_group" "app" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  ingress {
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    self        = true
+    description = "Allow internal Node Exporter scraping"
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -100,9 +116,9 @@ resource "aws_security_group" "app" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
+  tags = merge(var.tags, {
     Name = "${local.name_prefix}-app-sg"
-  }
+  })
 }
 
 ###############################
@@ -123,6 +139,8 @@ resource "aws_iam_role" "ec2_role" {
       },
     ]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_core" {
@@ -172,4 +190,16 @@ resource "aws_iam_role_policy" "bedrock_access" {
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${local.name_prefix}-ec2-instance-profile"
   role = aws_iam_role.ec2_role.name
+}
+
+output "app_sg_id" {
+  value = aws_security_group.app.id
+}
+
+output "alb_sg_id" {
+  value = aws_security_group.alb.id
+}
+
+output "instance_profile_name" {
+  value = aws_iam_instance_profile.ec2_profile.name
 }
