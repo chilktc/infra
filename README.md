@@ -1,5 +1,12 @@
 # Cloud-Native Platform Infrastructure
 
+|              |                             |
+| ------------ | --------------------------- |
+| **Infra**    | AWS 기반 클라우드 인프라    |
+| **Platform** | Kubernetes 플랫폼 구성 요소 |
+| **Workload** | 애플리케이션 매니페스트     |
+| **GitOps**   | ArgoCD GitOps 루트          |
+
 AWS 기반의 **Production-Ready Cloud-Native 플랫폼 아키텍처**를 코드 중심으로 설계하고 관리하기 위한 인프라 repo입니다.
 
 **Infra → Platform → Workload → GitOps** 구조를 기반으로  
@@ -35,6 +42,7 @@ Backend (Spring Boot)
 ↓
 RDS / Redis / S3
 ```
+
 ### `CI`/`CD` 흐름
 
 ```
@@ -44,24 +52,27 @@ ArgoCD
 ↓
 EKS
 ```
+
 ---
 
 ## 주요 구성 요소
 
-| 영역 | 구성 요소 |
-|------|-----------|
-| Network | VPC, Subnets, ALB, NAT, VPC Endpoints |
-| Compute | Amazon EKS |
-| Service Mesh | Istio |
-| CI/CD | GitHub Actions, ArgoCD |
+| 영역          | 구성 요소                                 |
+| ------------- | ----------------------------------------- |
+| Network       | VPC, Subnets, ALB, NAT, VPC Endpoints     |
+| Compute       | Amazon EKS                                |
+| Service Mesh  | Istio                                     |
+| CI/CD         | GitHub Actions, ArgoCD                    |
 | Observability | Prometheus, Grafana, Alertmanager, Jaeger |
-| Autoscaling | HPA, Karpenter |
-| Backup | Velero |
-| Data | RDS, S3, Redis |
-| Security | Bastion Host, KMS, Private Access |
+| Autoscaling   | HPA, Karpenter                            |
+| Backup        | Velero                                    |
+| Data          | RDS, S3, Redis                            |
+| Security      | Bastion Host, KMS, Private Access         |
+
 ---
 
 ## `Repository Structure`
+
 ```
 infra/
 ├── README.md # 프로젝트 개요
@@ -124,4 +135,3 @@ ArgoCD가 감시하는 GitOps 루트
 - VPC Endpoint 통한 AWS 서비스 Private 접근
 - KMS 기반 데이터 암호화
 - Service Mesh 기반 트래픽 제어
-
