@@ -1,42 +1,86 @@
 #!/bin/bash
-# t7-mindlog Production Application Initialization Script
-# Version: 3.0 (Monitoring Enabled)
+# t7-mindlog Production System Initialization Script
+# Version: 3.5 (Fixed AWS CLI, Docker, and All Services)
 
 set -e
 
-# Variable Injection from Terraform (using $ for template, needs escaping for shell if needed)
 # Variable Injection from Terraform
 TARGET_IPS="${target_ips}"
+REGION="ap-northeast-2"
+ACCOUNT_ID="274130523831"
 
 # Self-detecting Instance Role using IMDSv2
 TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 MY_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
 
-# First IP in the list is considered app-1 (Management Node)
-MANAGEMENT_IP=$(echo $TARGET_IPS | cut -d',' -f1)
+# Define Node IPs
+NODE_1="10.7.10.10"
+NODE_2="10.7.11.10"
+NODE_3="10.7.10.20"
+NODE_4="10.7.11.20"
 
-if [ "$MY_IP" == "$MANAGEMENT_IP" ]; then
-    IS_MANAGEMENT=true
-    echo "Self-detected as Management Node ($MY_IP)"
-else
-    IS_MANAGEMENT=false
-    echo "Self-detected as Application Node ($MY_IP)"
-fi
-
-# Update and install dependencies
+# 1. Basic Dependencies & AWS CLI
 apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io
+apt-get install -y ca-certificates curl gnupg lsb-release unzip awscli net-tools
 
-# Docker Compose installation
-DOCKER_COMPOSE_VERSION="v2.21.0"
-curl -L "https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+# 2. Install Docker & Dependencies (Official Repository)
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
 
-# Create configuration directory
-mkdir -p /home/ubuntu/monitoring/prometheus
-cd /home/ubuntu/monitoring
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# Define Common Services (Node Exporter)
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+
+# 3. AWS ECR Login
+# Note: Instance must have IAM role with ECR access (SSM Core is already attached, usually enough if supplemented)
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+
+# 4. Setup Project Directory
+mkdir -p /home/ubuntu/app/fluent-bit
+cd /home/ubuntu/app
+
+# --- Fluent-bit Configuration ---
+cat <<EOF > fluent-bit/fluent-bit.conf
+[SERVICE]
+    Flush        5
+    Daemon       Off
+    Log_Level    info
+    Parsers_File parsers.conf
+
+[INPUT]
+    Name             tail
+    Path             /var/lib/docker/containers/*/*.log
+    Parser           docker
+    Tag              docker.*
+    Refresh_Interval 5
+    Mem_Buf_Limit    5MB
+    Skip_Long_Lines  On
+
+[OUTPUT]
+    Name            opensearch
+    Match           *
+    Host            $NODE_1
+    Port            9200
+    Index           mindlog-logs
+    Type            _doc
+    Suppress_Type_Name On
+EOF
+
+cat <<EOF > fluent-bit/parsers.conf
+[PARSER]
+    Name         docker
+    Format       json
+    Time_Key     time
+    Time_Format  %Y-%m-%dT%H:%M:%S.%L
+    Time_Keep    On
+EOF
+
+# 5. Global Services (Node Exporter)
 SERVICES="
   node-exporter:
     image: prom/node-exporter:latest
@@ -50,26 +94,18 @@ SERVICES="
       - /:/rootfs:ro
 "
 
-# Configure app-1 as Management Node
-if [ "$IS_MANAGEMENT" = true ]; then
-    echo "Configuring app-1 as Management Node..."
-    
-    # Generate prometheus.yml targets from TARGET_IPS (comma-separated list)
-    IFS=',' read -ra ADDR <<< "$TARGET_IPS"
-    PROMETHEUS_TARGETS=""
-    for i in "$${ADDR[@]}"; do
-        PROMETHEUS_TARGETS+=\"'$i:9100',\"
-    done
-    PROMETHEUS_TARGETS=$${PROMETHEUS_TARGETS%,}
-
-cat <<EOF > prometheus/prometheus.yml
+# 6. Role-based Service Definition
+# --- APP-1 (Management: Prometheus, Grafana, OpenSearch) ---
+if [ "$MY_IP" == "$NODE_1" ]; then
+    echo "Configuring Node-1 (Management)..."
+    mkdir -p prometheus
+    cat <<EOF > prometheus/prometheus.yml
 global:
   scrape_interval: 15s
-
 scrape_configs:
   - job_name: 'node-exporter'
     static_configs:
-      - targets: [$PROMETHEUS_TARGETS]
+      - targets: ['$NODE_1:9100', '$NODE_2:9100', '$NODE_3:9100', '$NODE_4:9100']
 EOF
 
     SERVICES+="
@@ -81,8 +117,6 @@ EOF
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - \"9090:9090\"
-    networks:
-      - monitoring
 
   grafana:
     image: grafana/grafana:latest
@@ -91,31 +125,87 @@ EOF
       - \"3001:3000\"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${gf_admin_password}
-    networks:
-      - monitoring
+    volumes:
+      - grafana-data:/var/lib/grafana
 
   opensearch:
-    image: opensearchproject/opensearch:latest
+    image: opensearchproject/opensearch:2.11.1
     container_name: opensearch
     ports:
-      - \"5601:5601\"
+      - \"9200:9200\"
     environment:
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${os_admin_password}
       - discovery.type=single-node
-    networks:
-      - monitoring
+      - \"OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m\"
+      - DISABLE_SECURITY_PLUGIN=true
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: opensearch-dashboards
+    ports:
+      - \"5601:5601\"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
 "
 fi
+
+# --- APP-2, APP-3 (Backend + Frontend) ---
+if [ "$MY_IP" == "$NODE_2" ] || [ "$MY_IP" == "$NODE_3" ]; then
+    echo "Configuring App Instance (Backend + Frontend)..."
+    SERVICES+="
+  backend:
+    image: $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/t7-mindlog-backend:latest
+    container_name: backend
+    restart: always
+    ports:
+      - \"8080:8080\"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+
+  frontend:
+    image: $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/t7-mindlog-frontend:latest
+    container_name: frontend
+    restart: always
+    ports:
+      - \"3000:3000\"
+"
+fi
+
+# --- APP-4 (Frontend only) ---
+if [ "$MY_IP" == "$NODE_4" ]; then
+    echo "Configuring App Instance (Frontend only)..."
+    SERVICES+="
+  frontend:
+    image: $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/t7-mindlog-frontend:latest
+    container_name: frontend
+    restart: always
+    ports:
+      - \"3000:3000\"
+"
+fi
+
+# 7. Add Fluent-bit to Global Services
+SERVICES+="
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: fluent-bit
+    restart: always
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    user: root
+"
 
 # Write docker-compose.yml
 cat <<EOF > docker-compose.yml
 version: '3.8'
 services:
-$SERVICES
-
-networks:
-  monitoring:
-    driver: bridge
+  $SERVICES
+volumes:
+  grafana-data:
 EOF
 
 # Startup
