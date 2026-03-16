@@ -13,10 +13,11 @@ data "terraform_remote_state" "network" {
 module "security" {
   source = "../../../modules/security"
 
-  project = var.project
-  env     = var.env
-  vpc_id  = data.terraform_remote_state.network.outputs.vpc_id
-  tags    = var.default_tags
+  project            = var.project
+  env                = var.env
+  vpc_id             = data.terraform_remote_state.network.outputs.vpc_id
+  private_subnet_ids = data.terraform_remote_state.network.outputs.private_app_subnet_ids
+  tags               = var.default_tags
 }
 
 ###############################
