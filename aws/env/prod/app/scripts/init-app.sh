@@ -14,10 +14,25 @@ TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-m
 MY_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
 
 # Define Node IPs
-NODE_1="10.7.10.10"
+NODE_1="10.7.0.10"
 NODE_2="10.7.11.10"
 NODE_3="10.7.10.20"
 NODE_4="10.7.11.20"
+NODE_5="10.7.10.30"
+NODE_6="10.7.11.30"
+
+# SSH Key Injection
+if [ "$MY_IP" == "$NODE_1" ]; then
+    echo "${bastion_pub_key}" >> /home/ubuntu/.ssh/authorized_keys
+fi
+if [ "$MY_IP" == "$NODE_3" ]; then
+    echo "${gateway_pub_key}" >> /home/ubuntu/.ssh/authorized_keys
+fi
+
+# Fix SSH Directory Permissions strictly required by Ubuntu
+chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+chmod 700 /home/ubuntu/.ssh
+chmod 600 /home/ubuntu/.ssh/authorized_keys
 
 # 1. Basic Dependencies & AWS CLI
 apt-get update
@@ -105,7 +120,7 @@ global:
 scrape_configs:
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['$NODE_1:9100', '$NODE_2:9100', '$NODE_3:9100', '$NODE_4:9100']
+      - targets: ['$NODE_1:9100', '$NODE_2:9100', '$NODE_3:9100', '$NODE_4:9100', '$NODE_5:9100', '$NODE_6:9100']
 EOF
 
     SERVICES+="
@@ -150,8 +165,8 @@ EOF
 "
 fi
 
-# --- APP-2, APP-3 (Backend + Frontend) ---
-if [ "$MY_IP" == "$NODE_2" ] || [ "$MY_IP" == "$NODE_3" ]; then
+# --- APP-2, APP-3, APP-4, APP-5, APP-6 (Backend + Frontend) ---
+if [ "$MY_IP" == "$NODE_2" ] || [ "$MY_IP" == "$NODE_3" ] || [ "$MY_IP" == "$NODE_4" ] || [ "$MY_IP" == "$NODE_5" ] || [ "$MY_IP" == "$NODE_6" ]; then
     echo "Configuring App Instance (Backend + Frontend)..."
     SERVICES+="
   backend:
@@ -172,18 +187,7 @@ if [ "$MY_IP" == "$NODE_2" ] || [ "$MY_IP" == "$NODE_3" ]; then
 "
 fi
 
-# --- APP-4 (Frontend only) ---
-if [ "$MY_IP" == "$NODE_4" ]; then
-    echo "Configuring App Instance (Frontend only)..."
-    SERVICES+="
-  frontend:
-    image: $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/t7-mindlog-frontend:latest
-    container_name: frontend
-    restart: always
-    ports:
-      - \"3000:3000\"
-"
-fi
+# --- Removed APP-4 only block ---
 
 # 7. Add Fluent-bit to Global Services
 SERVICES+="
