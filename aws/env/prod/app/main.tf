@@ -30,13 +30,13 @@ module "compute" {
   instance_type         = var.instance_type
   instance_count        = var.instance_count
   subnet_ids            = data.terraform_remote_state.network.outputs.private_app_subnet_ids
-  private_ips           = ["10.7.10.10", "10.7.11.10", "10.7.10.20", "10.7.11.20"]
+  private_ips           = ["10.7.10.10", "10.7.11.10", "10.7.10.20", "10.7.11.20", "10.7.10.30", "10.7.11.30"]
   security_group_ids    = [module.security.app_sg_id]
   instance_profile_name = module.security.instance_profile_name
   user_data             = templatefile("${path.module}/scripts/init-app.sh", {
     gf_admin_password = var.gf_admin_password
     os_admin_password = var.os_admin_password
-    target_ips        = join(",", ["10.7.10.10", "10.7.11.10", "10.7.10.20", "10.7.11.20"])
+    target_ips        = join(",", ["10.7.10.10", "10.7.11.10", "10.7.10.20", "10.7.11.20", "10.7.10.30", "10.7.11.30"])
   })
   tags                  = var.default_tags
 }
@@ -54,9 +54,8 @@ module "alb" {
   security_group_ids = [module.security.alb_sg_id]
   tags               = var.default_tags
 
-  # backend+AI: app-2, app-3
+  # backend gateway: app-3
   instance_ids = {
-    "app-2" = module.compute.instance_ids[1]
     "app-3" = module.compute.instance_ids[2]
   }
 
@@ -65,10 +64,6 @@ module "alb" {
     "app-1" = module.compute.instance_ids[0]
   }
 
-  # frontend: app-2, app-3, app-4
-  frontend_instance_ids = {
-    "app-2" = module.compute.instance_ids[1]
-    "app-3" = module.compute.instance_ids[2]
-    "app-4" = module.compute.instance_ids[3]
-  }
+  # frontend no longer needed, passing empty list to avoid errors if required, or simply comment it out if it was optional. Wait, frontend_instance_ids was a variable.
+  frontend_instance_ids = {}
 }
